@@ -1,8 +1,11 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from textblob import TextBlob
 
 app = FastAPI()
+
+# Allow requests from the assignment evaluator/browser
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -11,58 +14,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 class SentimentRequest(BaseModel):
     sentences: list[str]
 
 
-positive_words = [
-    "love", "loved", "loving",
-    "like", "liked", "likes",
-    "great", "good", "better", "best",
-    "excellent", "amazing", "awesome",
-    "wonderful", "fantastic", "perfect",
-    "happy", "happier", "happiness",
-    "enjoy", "enjoyed", "enjoying",
-    "pleased", "satisfied",
-    "beautiful", "brilliant",
-    "helpful", "useful",
-    "success", "successful",
-    "win", "won", "winning",
-    "excited", "exciting",
-    "fun", "nice", "positive",
-    "recommend", "recommended",
-    "impressive", "incredible",
-    "thank", "thanks", "grateful"
-]
-
-negative_words = [
-    "hate", "hated", "hating",
-    "bad", "worse", "worst",
-    "terrible", "awful", "horrible",
-    "sad", "unhappy",
-    "angry", "anger",
-    "disappointed", "disappointing",
-    "disappointment",
-    "poor", "boring", "bored",
-    "fail", "failed", "failure",
-    "problem", "problems",
-    "broken", "damage", "damaged",
-    "wrong", "error", "errors",
-    "difficult", "hard",
-    "annoying", "annoyed",
-    "frustrated", "frustrating",
-    "useless", "waste",
-    "negative", "pain", "painful",
-    "sadly", "unfortunately",
-    "complaint", "complaints",
-    "refund", "scam"
-]
-
-
 def analyze_sentiment(sentence: str) -> str:
-    text = sentence.lower()
+    text = sentence.lower().strip()
 
-    # Handle common negative phrases
+    # Common negative phrases
     negative_phrases = [
         "don't like",
         "do not like",
@@ -78,30 +38,29 @@ def analyze_sentiment(sentence: str) -> str:
         "not good",
         "not great",
         "not satisfied",
-        "not enjoyable"
+        "not enjoyable",
+        "not excellent",
+        "not amazing",
+        "not wonderful",
+        "not useful",
+        "not helpful",
     ]
 
     for phrase in negative_phrases:
         if phrase in text:
             return "sad"
 
-    positive_count = sum(
-        1 for word in positive_words
-        if word in text
-    )
+    # Use TextBlob for general sentiment analysis
+    polarity = TextBlob(sentence).sentiment.polarity
 
-    negative_count = sum(
-        1 for word in negative_words
-        if word in text
-    )
-
-    if positive_count > negative_count:
+    if polarity > 0.1:
         return "happy"
 
-    if negative_count > positive_count:
+    elif polarity < -0.1:
         return "sad"
 
-    return "neutral"
+    else:
+        return "neutral"
 
 
 @app.post("/sentiment")
@@ -114,9 +73,16 @@ async def sentiment(request: SentimentRequest):
             "sentiment": analyze_sentiment(sentence)
         })
 
-    return {"results": results}
+    return {
+        "results": results
+    }
 
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+
+    uvicorn.run(
+        app,
+        host="0.0.0.0",
+        port=8000
+    )
